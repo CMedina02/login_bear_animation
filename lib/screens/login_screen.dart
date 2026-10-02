@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:rive/rive.dart';
+import 'dart:async'; //3.1 Importar el timer
+
+
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -19,6 +22,38 @@ class _LoginScreenState extends State<LoginScreen> {
   SMIBool? _isHandsUp;
   SMITrigger? _trigSuccess;
   SMITrigger? _trigFail;
+
+  //3.2 Variable del recorrido de la mirada
+  SMINumber? _numLook;
+
+  //3.3 Timer para detener la mirada al dejar de escribir
+  Timer? _typingDebounce;
+
+
+  //2.1 Crear las variables para FocusNode
+  final _emailFocus = FocusNode();
+  final _passwordFocus = FocusNode();
+
+  //2.2 Listeners (Oyentes/Chismosos)
+  @override
+  void initState() {
+    super.initState();
+    _emailFocus.addListener((){
+      if (_emailFocus.hasFocus){
+      //Verificar que no sea nulo
+        if (_isHandsUp != null) {
+        //manos abajo en el email
+        _isHandsUp?.change(false);
+        //3.4 Mirada Neutra
+        _numLook?.value = 50.0;
+        }
+      }
+    });
+    _passwordFocus.addListener((){ 
+     //Manos arriba en password
+     _isHandsUp?.change(_passwordFocus.hasFocus);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +77,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       artboard,
                       'Login Machine',
                     );
-
                     //1.3 Verificar que inicio bien
                     if (_controller == null) return;
                     //Agregamos el controlador al escenario
@@ -52,6 +86,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     _isHandsUp = _controller?.findSMI('isHandsUp');
                     _trigSuccess = _controller?.findSMI('trigSuccess');
                     _trigFail = _controller?.findSMI('trigFail');
+                    //3.5 Vincular  numlook
+                    _numLook = _controller?.findSMI('numLook');
                   },
                 ),
               ),
@@ -59,15 +95,35 @@ class _LoginScreenState extends State<LoginScreen> {
               SizedBox(height: 10),
               //Campo de texto para email
               TextField(
+                 //2.3 Asignar foco al campo de texto
+                focusNode: _emailFocus,
                 onChanged: (value) {
                   if (_isHandsUp != null) {
                     //No tapes los ojos al ver el email
-                    _isHandsUp?.change(false);
+                    //_isHandsUp?.change(false);
                   }
                   //Si isChecking no es nulO
                   if (_isChecking != null) {
                     //Activar el modo chismoso
                     _isChecking!.change(true);
+                    //3.6 Implementar Numlook
+                    //Ajustes de límites del 0 al 100
+                    //80 es la medida de calibracion
+                    final look = (value.length /80.0 * 100.0).clamp(0.0, 100.0);
+                    //clamp es el rango(abrazadera)
+                    _numLook?.value = look;
+
+                    //3.7 Debounce: Si vuelve a teclear, reinicia el contador
+                    //cancelar cualquier timer existente 
+                    _typingDebounce?.cancel();
+                    //crear un nuevo timer
+                    _typingDebounce = Timer(Duration(seconds: 3),(){
+                      //si se cierra la pantalla quito el contador
+                      if (!mounted) return;
+                      //Miarada neutra
+                      _isChecking?.change(false);
+                    });
+                    // 
                   }
                 },
                 //para mostrar el tipo de teclado
@@ -84,10 +140,12 @@ class _LoginScreenState extends State<LoginScreen> {
               //Campo de texto para contraseña
               SizedBox(height: 10),
               TextField(
+                //2.3 Asignar foco al campo de texto
+                focusNode: _passwordFocus,
                 onChanged: (value) {
                   if (_isChecking != null) {
                     //No tapes los ojos al ver el email
-                    _isChecking?.change(false);
+                    //_isChecking?.change(false);
                   }
                   //Si isChecking no es nulO
                   if (_isHandsUp != null) {
@@ -122,5 +180,14 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
     );
+  }
+  @override
+  void dispose() {
+    //2.4 liberar espacio en la memoria
+    _emailFocus.dispose();
+    _passwordFocus.dispose();
+    _typingDebounce?.cancel();//3.9 Eliminar el timer 
+    super.dispose();
+    
   }
 }
